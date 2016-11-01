@@ -39,7 +39,6 @@ static void print_usage(void)
     printf("    hash_client [-i IP] [-p port] [-h]\n");
 }
 
-
 /** @brief main function for client application
  *
  *  @param s The string to be printed.
