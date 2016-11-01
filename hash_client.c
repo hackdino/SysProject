@@ -21,6 +21,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <signal.h>
 
 /*****************************************************************************/
 /******************************************************************* defines */
@@ -29,6 +30,14 @@
 #define DEFAULT_PORT_NBR    16000
 /*****************************************************************************/
 /****************************************************************** functions*/
+
+/** @internal ctrc handler
+ *
+ */
+void cntrl_c_handler(int ignored) {
+
+  printf("exit");
+}
 
 /** @internal print usage of program
  *
@@ -97,6 +106,9 @@ int main (int argc, char **argv)
     if(pflag == 0) {
         srv.sin_port = htons(DEFAULT_PORT_NBR);
     }
+
+    /* setup ctrC handler */
+    signal(SIGINT, cntrl_c_handler);
 
     /* create socket */
     if ((create_socket = socket(srv.sin_family, SOCK_STREAM, 0)) == -1) {
