@@ -22,21 +22,27 @@
 #include <getopt.h>
 #include <errno.h>
 #include <signal.h>
+#include <pthread.h>
 
 /*****************************************************************************/
 /******************************************************************* defines */
 #define BUF 1024
 #define _POSIX_C_SOURCE     200112L
 #define DEFAULT_PORT_NBR    16000
+
+/*****************************************************************************/
+/******************************************************************* globals */
+volatile sig_atomic_t run = 1;
+
 /*****************************************************************************/
 /****************************************************************** functions*/
 
-/** @internal ctrc handler
+/** @brief ctrc handler
  *
  */
 void cntrl_c_handler(int ignored) {
 
-  printf("exit");
+  run = 0;
 }
 
 /** @internal print usage of program
@@ -44,15 +50,12 @@ void cntrl_c_handler(int ignored) {
  */
 static void print_usage(void)
 {
-    printf("usage:\n\n");
-    printf("    hash_client [-i IP] [-p port] [-h]\n");
+
+    printf("\nusage: hash_client [-i IP] [-p port] [-h]\n");
 }
 
 /** @brief main function for client application
  *
- *  @param s The string to be printed.
- *  @param len The length of the string s.
- *  @return Void.
  */
 int main (int argc, char **argv)
 {
@@ -93,9 +96,14 @@ int main (int argc, char **argv)
             print_usage();
             exit(EXIT_FAILURE);
         default:
+            print_usage();
+            exit(EXIT_FAILURE);
             break;
         }
     }
+
+    /* catch cntrl_c signal */
+    signal(SIGINT, cntrl_c_handler);
 
     /* use default ipv4 address */
     if(iflag == 0) {
@@ -107,37 +115,49 @@ int main (int argc, char **argv)
         srv.sin_port = htons(DEFAULT_PORT_NBR);
     }
 
-    /* setup ctrC handler */
-    signal(SIGINT, cntrl_c_handler);
-
     /* create socket */
     if ((create_socket = socket(srv.sin_family, SOCK_STREAM, 0)) == -1) {
         perror("Error to create socket");
         exit(EXIT_FAILURE);
     }
+
     /* connect with server */
-    if (connect(create_socket, (struct sockaddr *) &srv,
+    if (connect(create_socket, (struct sockaddr *)&srv,
                 sizeof(srv)) == -1) {
         close (create_socket);
         perror("Error to connect with server");
         exit(EXIT_FAILURE);
     }
-    /* sucessfully connect with server */
+
+    /* wait for ACK signal from server */
+    while(1){
+      size = recv(create_socket, buffer, BUF-1, 0);
+      if( size > 0) {
+        buffer[size] = '\0';
+        if(strncmp(buffer, "ACK", 3) == 0){
+          break;
+        }
+      }
+    }
+
+    /* Succesfully connect with server */
     printf("*** Successfuly connect with server ***\n\n");
 
     /* enter string by string */
     do {
-        size = recv(create_socket, buffer, BUF-1, 0);
-        if( size > 0) {
-            buffer[size] = '\0';
-        }
-        printf ("Hash code: %s\n", buffer);
-        if (strcmp (buffer, "quit\n")) {
-            printf ("Enter hash key: ");
-            fgets (buffer, BUF, stdin);
-            send(create_socket, buffer, strlen (buffer), 0);
-        }
-    } while (strcmp (buffer, "quit\n") != 0);
+      /* enter new data */
+      printf (">> Enter hash key: ");
+      fgets (buffer, BUF, stdin);
+      send(create_socket, buffer, strlen (buffer), 0);
+
+      /* wait for reply */
+      size = recv(create_socket, buffer, BUF-1, 0);
+      if( size > 0) {
+        buffer[size] = '\0';
+      }
+      printf ("<< Hash code: %s\n", buffer);
+    } while ((strcmp (buffer, "quit\n") != 0) && (run == 1));
+
     /* close connection */
     close (create_socket);
     return EXIT_SUCCESS;
