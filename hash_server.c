@@ -27,6 +27,11 @@
 #include <pthread.h>
 #include <inttypes.h>
 #include <time.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "crc32.h"
 
 /*****************************************************************************/
@@ -34,6 +39,11 @@
 #define TRUE   1
 #define FALSE  0
 #define DEFAULT_PORT_NBR    16000
+
+#define MQ_TYPE_OPEN_CON        1
+#define MQ_TYPE_CLOSE_CON       2
+#define MQ_TYPE_TERMINATE       3
+#define MQ_KEY                  1994
 
 /*****************************************************************************/
 /******************************************************************** typedef*/
@@ -43,13 +53,103 @@ typedef struct thread_job_s {
   int socket_fd;
 } thread_job_t;
 
+typedef struct log_msg_s {
+  long type;
+  char port[20];
+} log_msg_t;
+
 /*****************************************************************************/
-/******************************************************************* globals */
+/****************************************************************** functions*/
+
+/** @internal get formatet time string
+ *
+ */
+static char* get_local_time(void){
+
+  time_t rawtime;
+  struct tm * timeinfo;
+  char *pos = NULL;
+  char *time_str = NULL;
+
+  time ( &rawtime );
+  timeinfo = localtime(&rawtime);
+  time_str = asctime(timeinfo);
+
+  /* replace /n with /0 */
+  if ((pos=strchr(time_str, '\n')) != NULL){
+    *pos = '\0';
+  }
+
+  return time_str;
+}
+
+/** @brief logging threrad
+ *
+ */
+void *log_thread(void *ptr){
+
+  FILE *fp = NULL;
+  char *pfilename = (char *)ptr;
+  log_msg_t data;
+  int terminate = 0;
+
+  /* open/create log file */
+  fp = fopen(pfilename, "w+");
+  free(pfilename);
+
+  /* create message queue */
+  long int msqid = msgget(MQ_KEY, 0);
+  if (msqid < 0) {
+    perror("msgget");
+    return NULL;
+  }
+
+  /* print start log message */
+  fprintf(fp, "%s           *** Server starts successfully ***\n",
+          get_local_time());
+  fflush(fp);
+
+  while(1){
+    if(msgrcv(msqid, &data, sizeof(data), 0, 0) > 0){
+      switch(data.type){
+        case MQ_TYPE_OPEN_CON:
+          fprintf(fp, "%s           Client connected on port number: %s\n",
+                  get_local_time(), data.port);
+          break;
+        case MQ_TYPE_CLOSE_CON:
+          fprintf(fp, "%s           Client diconnected on port number: %s\n",
+                  get_local_time(), data.port);
+          break;
+        case MQ_TYPE_TERMINATE:
+          terminate = 1;
+          fprintf(fp, "%s           *** Server shut down properly ***\n",
+                  get_local_time());
+        break;
+      }
+      fflush(fp);
+    }
+
+    if(terminate){
+      break;
+    }
+
+    msqid = msgget(MQ_KEY, 0);
+    if (msqid < 0) {
+      perror("msgget");
+    }
+
+  }
+
+  /* close file handler */
+  fclose(fp);
+
+  return NULL;
+}
 
 /** @brief crc thread
  *
  */
-void *hash_cracker(void*ptr)
+void *hash_cracker(void *ptr)
 {
 
   thread_job_t *job = (thread_job_t *)ptr;
@@ -87,7 +187,7 @@ void *hash_cracker(void*ptr)
 static void print_usage(void)
 {
 
-  printf("\nusage: hash_server [-i IP] [-p port] [-h]\n");
+  printf("\nusage: hash_server [-i IP] [-p port] [-l logfile] [-h]\n");
 }
 
 /** @brief main function for server application
@@ -99,18 +199,20 @@ int main(int argc , char *argv[])
       max_clients = 30 , activity, i , valread , sd;
   int max_sd;
   int option = 0;
-  int iflag = 0, pflag = 0;
+  int iflag = 0, pflag = 0, lflag = 0;
   pthread_t thread[30];
+  pthread_t thread_log;
   thread_job_t job[30];
   struct sockaddr_in srv;
   char buffer[1025];  //data buffer of 1K
-  //set of socket descriptors
   fd_set readfds;
-  //a message
   char *message = "ACK\r\n";
+  char *pfilename = NULL;
+  log_msg_t data;
+  long int msqid;
 
   /* decode arguments */
-  while ((option = getopt(argc, argv,"i:p:h")) != -1) {
+  while ((option = getopt(argc, argv,"i:p:l:h")) != -1) {
     switch (option) {
     case 'i' :
       if(inet_pton(AF_INET, optarg, &srv.sin_addr)) {
@@ -133,6 +235,12 @@ int main(int argc , char *argv[])
       srv.sin_port = htons(atoi(optarg));
       pflag = 1;
       break;
+    case 'l':
+      pfilename = malloc(strlen(optarg)+sizeof(".txt"));
+      strcpy(pfilename, optarg);
+      strcat(pfilename, ".txt");
+      lflag = 1;
+      break;
     case 'h' :
       print_usage();
       exit(EXIT_FAILURE);
@@ -152,6 +260,18 @@ int main(int argc , char *argv[])
   if(pflag == 0) {
     srv.sin_port = htons(DEFAULT_PORT_NBR);
   }
+  /* set default log file */
+  if(lflag == 0){
+    pfilename = malloc(sizeof("logfile.txt"));
+    strcpy(pfilename, "logfile.txt");
+  }
+
+  /* create message queue */
+  msqid = msgget(MQ_KEY, IPC_CREAT | S_IRWXU | S_IROTH);
+  if (msqid < 0) {
+    perror("msgget");
+    return 1;
+  }
 
   /* initialise all client_socket[] to 0 so not checked */
   for (i = 0; i < max_clients; i++) {
@@ -163,6 +283,9 @@ int main(int argc , char *argv[])
     perror("Error to create socket");
     exit(EXIT_FAILURE);
   }
+
+  /* start log thread */
+  pthread_create(&thread_log, NULL, log_thread, (void *)pfilename);
 
   /* bind socket */
   if (bind(master_socket, (struct sockaddr *)&srv,
@@ -222,8 +345,16 @@ int main(int argc , char *argv[])
       }
 
       /* inform user about new connection */
-      printf(">> New connection , socket fd is %d , ip is : %s , port : %d \n",
+      printf("<< New connection , socket fd is %d , ip is : %s , port : %d \n",
              new_socket , inet_ntoa(srv.sin_addr) , ntohs(srv.sin_port));
+
+      /* send to log tast */
+      data.type = MQ_TYPE_OPEN_CON;
+      sprintf(data.port, "%d", ntohs(srv.sin_port));
+      if (msgsnd(msqid, &data, sizeof(data), 0) < 0) {
+        perror("msgsnd");
+        exit(EXIT_FAILURE);
+      }
 
       /* send ACK to new connection */
       if( send(new_socket, message, strlen(message),
@@ -236,7 +367,6 @@ int main(int argc , char *argv[])
         /* if position is empty */
         if( client_socket[i] == 0 ) {
           client_socket[i] = new_socket;
-          printf("Adding to list of sockets as %d\n" , i);
           break;
         }
       }
@@ -249,9 +379,17 @@ int main(int argc , char *argv[])
         if((valread = read(sd, buffer, 1024)) == 0) {
           /* Somebody disconnected , get his details and print */
           getpeername(sd , (struct sockaddr*)&srv , (socklen_t*)&addrlen);
-          printf("Host disconnected , ip %s , port %d \n" ,
+          printf("<< Host disconnected , ip %s , port %d \n" ,
                  inet_ntoa(srv.sin_addr) ,
                  ntohs(srv.sin_port));
+
+          /* send to log tast */
+          data.type = MQ_TYPE_CLOSE_CON;
+          sprintf(data.port, "%d", ntohs(srv.sin_port));
+          if (msgsnd(msqid, &data, sizeof(data), 0) < 0) {
+            perror("msgsnd");
+            exit(EXIT_FAILURE);
+          }
           /* Close the socket and mark as 0 in list for reuse */
           close(sd);
           client_socket[i] = 0;

@@ -33,9 +33,37 @@
 /*****************************************************************************/
 /******************************************************************* globals */
 volatile sig_atomic_t run = 1;
+volatile sig_atomic_t stop_wait = 1;
 
 /*****************************************************************************/
 /****************************************************************** functions*/
+
+/** @brief thread to signal user that something is calculated!!
+ *
+ */
+void *wait_signal(void *ptr){
+
+  while(stop_wait == 1){
+    system("tput civis");
+    printf("\rwait .");
+    fflush( stdout );
+    sleep(1);
+    printf("\rwait . .");
+    fflush( stdout );
+    sleep(1);
+    printf("\rwait . . .");
+    fflush( stdout );
+    sleep(1);
+    printf("\rwait      ");
+    fflush( stdout );
+    sleep(1);
+  }
+  printf("\r");
+  fflush( stdout );
+  system("tput cnorm");
+
+  return NULL;
+}
 
 /** @brief ctrc handler
  *
@@ -65,6 +93,7 @@ int main (int argc, char **argv)
     int size;
     int option = 0;
     int iflag = 0, pflag = 0;
+    pthread_t thread_wait;
 
     /* fill srv with null */
     memset(&srv, 0, sizeof(struct sockaddr_in));
@@ -150,8 +179,15 @@ int main (int argc, char **argv)
       fgets (buffer, BUF, stdin);
       send(create_socket, buffer, strlen (buffer), 0);
 
+      /* start signal wait thread */
+      stop_wait = 1;
+      pthread_create(&thread_wait, NULL, wait_signal, (void *)NULL);
+
       /* wait for reply */
       size = recv(create_socket, buffer, BUF-1, 0);
+      /* stop thread */
+      stop_wait = 0;
+      pthread_join(thread_wait, NULL);
       if( size > 0) {
         buffer[size] = '\0';
       }
