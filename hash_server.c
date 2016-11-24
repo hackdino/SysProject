@@ -31,7 +31,6 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <omp.h>
 
 #include "crc32.h"
 
