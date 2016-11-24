@@ -31,7 +31,6 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <omp.h>
 
 #include "crc32.h"
 
@@ -65,8 +64,7 @@ typedef struct log_msg_s {
 /** @internal get formatet time string
  *
  */
-static char* get_local_time(void)
-{
+static char* get_local_time(void){
 
   time_t rawtime;
   struct tm * timeinfo;
@@ -78,7 +76,7 @@ static char* get_local_time(void)
   time_str = asctime(timeinfo);
 
   /* replace /n with /0 */
-  if ((pos=strchr(time_str, '\n')) != NULL) {
+  if ((pos=strchr(time_str, '\n')) != NULL){
     *pos = '\0';
   }
 
@@ -88,8 +86,7 @@ static char* get_local_time(void)
 /** @brief logging threrad
  *
  */
-void *log_thread(void *ptr)
-{
+void *log_thread(void *ptr){
 
   FILE *fp = NULL;
   char *pfilename = (char *)ptr;
@@ -112,27 +109,27 @@ void *log_thread(void *ptr)
           get_local_time());
   fflush(fp);
 
-  while(1) {
-    if(msgrcv(msqid, &data, sizeof(data), 0, 0) > 0) {
-      switch(data.type) {
-      case MQ_TYPE_OPEN_CON:
-        fprintf(fp, "%s           Client connected on port number: %s\n",
-                get_local_time(), data.port);
-        break;
-      case MQ_TYPE_CLOSE_CON:
-        fprintf(fp, "%s           Client diconnected on port number: %s\n",
-                get_local_time(), data.port);
-        break;
-      case MQ_TYPE_TERMINATE:
-        terminate = 1;
-        fprintf(fp, "%s           *** Server shut down properly ***\n",
-                get_local_time());
+  while(1){
+    if(msgrcv(msqid, &data, sizeof(data), 0, 0) > 0){
+      switch(data.type){
+        case MQ_TYPE_OPEN_CON:
+          fprintf(fp, "%s           Client connected on port number: %s\n",
+                  get_local_time(), data.port);
+          break;
+        case MQ_TYPE_CLOSE_CON:
+          fprintf(fp, "%s           Client diconnected on port number: %s\n",
+                  get_local_time(), data.port);
+          break;
+        case MQ_TYPE_TERMINATE:
+          terminate = 1;
+          fprintf(fp, "%s           *** Server shut down properly ***\n",
+                  get_local_time());
         break;
       }
       fflush(fp);
     }
 
-    if(terminate) {
+    if(terminate){
       break;
     }
 
@@ -264,7 +261,7 @@ int main(int argc , char *argv[])
     srv.sin_port = htons(DEFAULT_PORT_NBR);
   }
   /* set default log file */
-  if(lflag == 0) {
+  if(lflag == 0){
     pfilename = malloc(sizeof("logfile.txt"));
     strcpy(pfilename, "logfile.txt");
   }
@@ -408,5 +405,3 @@ int main(int argc , char *argv[])
   }
   return 0;
 }
-
-/*EOF*/
