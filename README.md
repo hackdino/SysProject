@@ -6,7 +6,7 @@
      
  2.) Compile Client
  
-     gcc -std=c99 -o hash_client hash_client.c -Wall -pedantic
+     gcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthread
     
  3.) Start Server
      
