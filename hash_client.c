@@ -5,12 +5,13 @@
  * @brief File contains client functionallity for the hash cracker client
  *
  * @usage gcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthread
- *        astyle -A3 --max-code-length=79 hash_client.c
+ *        astylgcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthreade -A3 --max-code-length=79 hash_client.c
  *
  */
 
 /*****************************************************************************/
 /****************************************************************** includes */
+#define _POSIX_C_SOURCE     200112L
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -27,8 +28,9 @@
 /*****************************************************************************/
 /******************************************************************* defines */
 #define BUF 1024
-#define _POSIX_C_SOURCE     200112L
 #define DEFAULT_PORT_NBR    16000
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
 
 /*****************************************************************************/
 /******************************************************************* globals */
@@ -38,14 +40,54 @@ volatile sig_atomic_t stop_wait = 1;
 /*****************************************************************************/
 /****************************************************************** functions*/
 
+/** @internal encode user commands
+ *
+ *  @retrun -1 => command not supported
+ *           0 => help
+ *           1 => cracker
+ *           2 => quit client
+ *
+ */
+static int encode_command(char *cmd){
+
+  char *pch = NULL;
+  int i = 0;
+  int ret = -1;
+
+  pch = strtok (cmd," ");
+  while (pch != NULL)  {
+    if(i == 0){
+      if(strncmp(pch, "crack", 5) == 0){
+        ret = 1;
+      }else if(strncmp(pch, "help", 4) == 0){
+        ret = 0;
+      }else if(strncmp(pch, "quit", 4) == 0){
+        ret = 2;
+      }else{
+        ret = -1;
+      }
+    }else if(i == 1){
+      strcpy(cmd, pch);
+    }else{
+      ret = -1;
+    }
+    pch = strtok (NULL, " ,.");
+    i++;
+  }
+
+  return ret;
+}
+
 /** @brief thread to signal user that something is calculated!!
  *
  */
 void *wait_signal(void *ptr)
 {
 
+  /* hide cursor */
+  system("tput civis");
+
   while(stop_wait == 1) {
-    system("tput civis");
     printf("\rwait .");
     fflush( stdout );
     sleep(1);
@@ -60,7 +102,8 @@ void *wait_signal(void *ptr)
     sleep(1);
   }
   printf("\r");
-  fflush( stdout );
+  fflush(stdout);
+  /* show cursor */
   system("tput cnorm");
 
   return NULL;
@@ -95,6 +138,7 @@ int main (int argc, char **argv)
   int size;
   int option = 0;
   int iflag = 0, pflag = 0;
+  int ret;
   pthread_t thread_wait;
 
   /* fill srv with null */
@@ -177,8 +221,27 @@ int main (int argc, char **argv)
   /* enter string by string */
   do {
     /* enter new data */
-    printf (">> Enter hash key: ");
+    printf(ANSI_COLOR_GREEN     "hc >> "     ANSI_COLOR_RESET );
     fgets (buffer, BUF, stdin);
+    ret = encode_command(buffer);
+    if(ret == 0){
+      /* print help */
+      printf("Available commands:\n");
+      printf("crack key       Calculate hash crack\n");
+      printf("help            Display this help text\n");
+      printf("quit            Quit hash cracker\n");
+      continue;
+    }else if(ret == 1){
+      /* crack function */
+      printf("%s\n", buffer);
+    }else if(ret == 2){
+      /* quit client */
+      continue;
+    }else{
+      /* error */
+      continue;
+    }
+
     send(create_socket, buffer, strlen (buffer), 0);
 
     /* start signal wait thread */

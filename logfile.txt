@@ -1,0 +1,8 @@
+Sun Nov 27 18:52:43 2016           *** Server starts successfully ***
+Sun Nov 27 18:52:47 2016           Client connected on port number: 45378
+Sun Nov 27 18:52:57 2016           Client diconnected on port number: 45378
+Sun Nov 27 18:52:59 2016           Client connected on port number: 45380
+Sun Nov 27 18:53:03 2016           Client diconnected on port number: 45380
+Sun Nov 27 18:53:06 2016           Client connected on port number: 45382
+Sun Nov 27 18:53:11 2016           Client diconnected on port number: 45382
+Sun Nov 27 18:53:15 2016           Client connected on port number: 45384
