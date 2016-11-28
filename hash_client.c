@@ -5,7 +5,7 @@
  * @brief File contains client functionallity for the hash cracker client
  *
  * @usage gcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthread
- *        astylgcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthreade -A3 --max-code-length=79 hash_client.c
+ *        astylgcc -A3 --max-code-length=79 --indent=spaces=2 hash_client.c
  *
  */
 
@@ -48,7 +48,8 @@ volatile sig_atomic_t stop_wait = 1;
  *           2 => quit client
  *
  */
-static int encode_command(char *cmd){
+static int encode_command(char *cmd)
+{
 
   char *pch = NULL;
   int i = 0;
@@ -56,19 +57,19 @@ static int encode_command(char *cmd){
 
   pch = strtok (cmd," ");
   while (pch != NULL)  {
-    if(i == 0){
-      if(strncmp(pch, "crack", 5) == 0){
+    if(i == 0) {
+      if(strncmp(pch, "crack", 5) == 0) {
         ret = 1;
-      }else if(strncmp(pch, "help", 4) == 0){
+      } else if(strncmp(pch, "help", 4) == 0) {
         ret = 0;
-      }else if(strncmp(pch, "quit", 4) == 0){
+      } else if(strncmp(pch, "quit", 4) == 0) {
         ret = 2;
-      }else{
+      } else {
         ret = -1;
       }
-    }else if(i == 1){
+    } else if(i == 1) {
       strcpy(cmd, pch);
-    }else{
+    } else {
       ret = -1;
     }
     pch = strtok (NULL, " ,.");
@@ -224,20 +225,19 @@ int main (int argc, char **argv)
     printf(ANSI_COLOR_GREEN     "hc >> "     ANSI_COLOR_RESET );
     fgets (buffer, BUF, stdin);
     ret = encode_command(buffer);
-    if(ret == 0){
+    if(ret == 0) {
       /* print help */
       printf("Available commands:\n");
       printf("crack key       Calculate hash crack\n");
       printf("help            Display this help text\n");
       printf("quit            Quit hash cracker\n");
       continue;
-    }else if(ret == 1){
+    } else if(ret == 1) {
       /* crack function */
-      printf("%s\n", buffer);
-    }else if(ret == 2){
+    } else if(ret == 2) {
       /* quit client */
       continue;
-    }else{
+    } else {
       /* error */
       continue;
     }
