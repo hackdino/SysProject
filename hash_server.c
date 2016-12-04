@@ -33,14 +33,16 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <omp.h>
 #include "crc32.h"
+
+/* include shared defines */
+#include "shared_defines.h"
 
 /*****************************************************************************/
 /******************************************************************* defines */
 #define TRUE   1
 #define FALSE  0
-#define DEFAULT_PORT_NBR    16000
 
 #define MQ_TYPE_OPEN_CON        1
 #define MQ_TYPE_CLOSE_CON       2
@@ -159,8 +161,9 @@ void *hash_cracker(void *ptr)
   thread_job_t *job = (thread_job_t *)ptr;
   uint32_t orig_crc = crc32(job->data, job->len);
   char result[1024];
-  uint32_t cur_crc;
+  uint32_t cur_crc = 0;
   uint32_t i = 0;
+
 
   /* search for equal hash code */
   while (1) {
@@ -258,7 +261,7 @@ int main(int argc , char *argv[])
   /* use default ipv4 address */
   if(iflag == 0) {
     srv.sin_family = AF_INET;
-    inet_pton(AF_INET, "127.0.0.1", &srv.sin_addr);
+    inet_pton(AF_INET, DEFAULT_IP_ADDR, &srv.sin_addr);
   }
   /* use default port number */
   if(pflag == 0) {

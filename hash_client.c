@@ -25,10 +25,12 @@
 #include <signal.h>
 #include <pthread.h>
 
+/* include shared defines */
+#include "shared_defines.h"
+
 /*****************************************************************************/
 /******************************************************************* defines */
 #define BUF 1024
-#define DEFAULT_PORT_NBR    16000
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
@@ -41,6 +43,8 @@ volatile sig_atomic_t stop_wait = 1;
 /****************************************************************** functions*/
 
 /** @internal encode user commands
+ *
+ *  @param cmd pointer to char array
  *
  *  @retrun -1 => command not supported
  *           0 => help
@@ -88,7 +92,7 @@ void *wait_signal(void *ptr)
   /* hide cursor */
   system("tput civis");
 
-  while(stop_wait == 1) {
+  while(stop_wait) {
     printf("\rwait .");
     fflush( stdout );
     sleep(1);
@@ -184,7 +188,7 @@ int main (int argc, char **argv)
   /* use default ipv4 address */
   if(iflag == 0) {
     srv.sin_family = AF_INET;
-    inet_pton(AF_INET, "127.0.0.1", &srv.sin_addr);
+    inet_pton(AF_INET, DEFAULT_IP_ADDR, &srv.sin_addr);
   }
   /* use default port number */
   if(pflag == 0) {
@@ -217,7 +221,8 @@ int main (int argc, char **argv)
   }
 
   /* Succesfully connect with server */
-  printf("*** Successfuly connect with server ***\n\n");
+  printf("*** Successfuly connect with server ***\n");
+  printf("*** Hash cracker ver: 1.0  ***\n\n");
 
   /* enter string by string */
   do {
@@ -256,8 +261,8 @@ int main (int argc, char **argv)
     if( size > 0) {
       buffer[size] = '\0';
     }
-    printf ("<< Hash code: %s\n", buffer);
-  } while ((strcmp (buffer, "quit\n") != 0) && (run == 1));
+    printf ("Hash code: %s\n", buffer);
+  } while ((strcmp(buffer, "quit\n") != 0) && (run));
 
   /* close connection */
   close (create_socket);
