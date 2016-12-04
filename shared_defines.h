@@ -3,7 +3,7 @@
  * @author Fränz Ney (es16m013)
  * @date 04 Dec 2016
  * @brief File contains shared defines
- *		=> fefault port and IP number
+ *		=> default port and IP number
  *
  *
  */
