@@ -5,7 +5,7 @@
  * @brief File contains client functionallity for the hash cracker client
  *
  * @usage gcc -std=c99 -o hash_client hash_client.c -Wall -pedantic -lpthread
- *        astylgcc -A3 --max-code-length=79 --indent=spaces=2 hash_client.c
+ *        astyle -A3 --max-code-length=79 --indent=spaces=2 hash_client.c
  *
  */
 
@@ -129,7 +129,9 @@ void cntrl_c_handler(int ignored)
 static void print_usage(void)
 {
 
-  printf("\nusage: hash_client [-i IP] [-p port] [-h]\n");
+  printf("\n  Hash cracker client 1.0\n  Maintained by: Fränz Ney\n\n");
+  printf("\nUsage:\n------\n");
+  printf("          hash_client [-i IP] [-p port] [-h]\n\n");
 }
 
 /** @brief main function for client application
@@ -148,6 +150,7 @@ int main (int argc, char **argv)
 
   /* fill srv with null */
   memset(&srv, 0, sizeof(struct sockaddr_in));
+
 
   /* decode arguments */
   while ((option = getopt(argc, argv,"i:p:h")) != -1) {
@@ -195,12 +198,11 @@ int main (int argc, char **argv)
     srv.sin_port = htons(DEFAULT_PORT_NBR);
   }
 
-  /* create socket */
-  if ((create_socket = socket(srv.sin_family, SOCK_STREAM, 0)) == -1) {
+  /* create a master socket */
+  if((create_socket = socket(srv.sin_family, SOCK_STREAM , 0)) == -1) {
     perror("Error to create socket");
     exit(EXIT_FAILURE);
   }
-
   /* connect with server */
   if (connect(create_socket, (struct sockaddr *)&srv,
               sizeof(srv)) == -1) {
@@ -233,9 +235,9 @@ int main (int argc, char **argv)
     if(ret == 0) {
       /* print help */
       printf("Available commands:\n");
-      printf("crack key       Calculate hash crack\n");
-      printf("help            Display this help text\n");
-      printf("quit            Quit hash cracker\n");
+      printf("  crack key       Calculate hash crack\n");
+      printf("  help            Display this help text\n");
+      printf("  quit            Quit hash cracker\n");
       continue;
     } else if(ret == 1) {
       /* crack function */
@@ -247,14 +249,26 @@ int main (int argc, char **argv)
       continue;
     }
 
-    send(create_socket, buffer, strlen (buffer), 0);
+    if(send(create_socket, buffer, strlen (buffer), 0) != strlen(buffer)) {
+      perror("send");
+      exit(EXIT_FAILURE);
+    }
 
     /* start signal wait thread */
     stop_wait = 1;
-    pthread_create(&thread_wait, NULL, wait_signal, (void *)NULL);
+    if((pthread_create(&thread_wait, NULL, wait_signal, (void *)NULL)) != 0) {
+      perror("Error to create wait thread");
+      exit(EXIT_FAILURE);
+    }
 
     /* wait for reply */
     size = recv(create_socket, buffer, BUF-1, 0);
+    /* check if server is diconnected */
+    if(size == 0) {
+      printf("\r*** Sorry lost connection to server ***\n");
+      printf("*** client shutdown!! try later again ***\n\n");
+      break;
+    }
     /* stop thread */
     stop_wait = 0;
     pthread_join(thread_wait, NULL);
@@ -266,6 +280,7 @@ int main (int argc, char **argv)
 
   /* close connection */
   close (create_socket);
+  printf("\n*** Close hash client ***\n");
   return EXIT_SUCCESS;
 }
 

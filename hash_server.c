@@ -27,6 +27,8 @@
 #include <sys/time.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <time.h>
 #include <sys/ipc.h>
@@ -35,6 +37,9 @@
 #include <sys/types.h>
 #include <omp.h>
 #include "crc32.h"
+
+#include <netdb.h>
+#include <resolv.h>
 
 /* include shared defines */
 #include "shared_defines.h"
@@ -47,7 +52,11 @@
 #define MQ_TYPE_OPEN_CON        1
 #define MQ_TYPE_CLOSE_CON       2
 #define MQ_TYPE_TERMINATE       3
-#define MQ_KEY                  1994
+#define MQ_KEY                  1992
+
+/*****************************************************************************/
+/******************************************************************* globals */
+volatile sig_atomic_t run = 1;
 
 /*****************************************************************************/
 /******************************************************************** typedef*/
@@ -72,7 +81,7 @@ static char* get_local_time(void)
 {
 
   time_t rawtime;
-  struct tm * timeinfo;
+  struct tm *timeinfo;
   char *pos = NULL;
   char *time_str = NULL;
 
@@ -174,6 +183,11 @@ void *hash_cracker(void *ptr)
       break;
     }
     i++;
+
+    /* return if ^C */
+    if(!run) {
+      return NULL;
+    }
   }
 
   /* format result in string */
@@ -193,8 +207,18 @@ void *hash_cracker(void *ptr)
  */
 static void print_usage(void)
 {
+  printf("\n  Hash cracker server 1.0\n  Maintained by: Fränz Ney\n\n");
+  printf("\nUsage:\n------\n");
+  printf("          hash_server [-i IP] [-p port] [-l logfile] [-h]\n\n");
+}
 
-  printf("\nusage: hash_server [-i IP] [-p port] [-l logfile] [-h]\n");
+/** @brief ctrc handler
+ *
+ */
+void cntrl_c_handler(int ignored)
+{
+
+  run = 0;
 }
 
 /** @brief main function for server application
@@ -218,6 +242,9 @@ int main(int argc , char *argv[])
   log_msg_t data;
   long int msqid;
 
+  /* fill srv with null */
+  memset(&srv, 0, sizeof(struct sockaddr_in));
+
   /* decode arguments */
   while ((option = getopt(argc, argv,"i:p:l:h")) != -1) {
     switch (option) {
@@ -229,7 +256,6 @@ int main(int argc , char *argv[])
       } else if(inet_pton(AF_INET6 , optarg, &srv.sin_addr)) {
         /* valid ipv6 address */
         srv.sin_family = AF_INET6;
-        printf("ipv6\n");
         iflag = 1;
       } else {
         /* No valid ipv6 or ipv4 address */
@@ -257,6 +283,9 @@ int main(int argc , char *argv[])
       break;
     }
   }
+
+  /* catch cntrl_c signal */
+  signal(SIGINT, cntrl_c_handler);
 
   /* use default ipv4 address */
   if(iflag == 0) {
@@ -292,7 +321,11 @@ int main(int argc , char *argv[])
   }
 
   /* start log thread */
-  pthread_create(&thread_log, NULL, log_thread, (void *)pfilename);
+  if((pthread_create(&thread_log, NULL, log_thread,
+                     (void *)pfilename)) != 0) {
+    perror("Error to create log thread");
+    exit(EXIT_FAILURE);
+  };
 
   /* bind socket */
   if (bind(master_socket, (struct sockaddr *)&srv,
@@ -300,6 +333,7 @@ int main(int argc , char *argv[])
     perror("bind failed");
     exit(EXIT_FAILURE);
   }
+
   printf("*** Hash cracker server is ready ***\n\n");
 
   /* max 3 pending connections for master_socket */
@@ -312,7 +346,7 @@ int main(int argc , char *argv[])
   addrlen = sizeof(srv);
   puts(">> Waiting for connections ...");
 
-  while(TRUE) {
+  while(run) {
     /* clear the socket set */
     FD_ZERO(&readfds);
 
@@ -339,8 +373,13 @@ int main(int argc , char *argv[])
     /* wait for an activity on one of the sockets */
     activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
 
+    if(activity <= 0) {
+      continue;
+    }
+
     if((activity < 0) && (errno != EINTR)) {
       printf("select error");
+      continue;
     }
 
     /* incomming connection on master_sockets */
@@ -405,12 +444,43 @@ int main(int argc , char *argv[])
           memcpy(job[i].data, buffer, valread);
           job[i].socket_fd = sd;
           job[i].len = valread;
-          pthread_create(&thread[i], NULL, hash_cracker, (void *)&job[i]);
+          if((pthread_create(&thread[i], NULL, hash_cracker,
+                             (void *)&job[i])) != 0) {
+            perror("Error to create hash_cracker thread");
+            exit(EXIT_FAILURE);
+          }
         }
       }
     }
   }
-  return 0;
+
+  /* close all open connections */
+  for(i = 0; i < max_clients; i++) {
+    sd = client_socket[i];
+    if(sd != 0) {
+      close(sd);
+    }
+  }
+  /* terminate log thread */
+  data.type = MQ_TYPE_TERMINATE;
+  sprintf(data.port, "%d", ntohs(srv.sin_port));
+  if (msgsnd(msqid, &data, sizeof(data), 0) < 0) {
+    perror("msgsnd");
+    exit(EXIT_FAILURE);
+  }
+  /* wait for log thread */
+  pthread_join(thread_log, NULL);
+
+  /* wait for all hasch crack threads */
+  for(i = 0; i < max_clients; i++) {
+    sd = client_socket[i];
+    if(sd != 0) {
+      pthread_join(thread[i], NULL);
+    }
+  }
+
+  printf("\r  \n*** Server closed ***\n");
+  return EXIT_SUCCESS;
 }
 
 /*EOF*/

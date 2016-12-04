@@ -10,7 +10,7 @@
     
  4.) start server
      
-     ./hash_server [-i IP] [-p port] [-h]
+     ./hash_server [-i IP] [-p port] [-l logfile] [-h]
      
  5.) start client(s)
  
@@ -26,6 +26,12 @@
 
 	* hc >> help			//print client usage
 
- 6.) Clean generated files
+ 7.) usage server
+
+	* with ^C server will shutdown properly
+	* logging information will be write into logfile.txt(default)
+
+
+ 6.) Clean generated files (optional)
 
      make clean
