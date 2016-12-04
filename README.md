@@ -21,7 +21,7 @@
      the client program provides an interactive modus:
 
      	* hc >> crack "String" 		//calculates an collision hash key
-		ex:
+		ex: hc >> crack test
      	* hc >> quit			//quit program
      	* hc >> help			//print client usage
 
