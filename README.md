@@ -21,13 +21,14 @@
      the client program provides an interactive modus:
 
      	* hc >> crack "String" 		//calculates an collision hash key
+		ex:
      	* hc >> quit			//quit program
-	* hc >> help			//print client usage
+     	* hc >> help			//print client usage
 
  7.) usage server
 
-	* with ^C server will shutdown properly
-	* logging information will be write into logfile.txt(default)
+     * with ^C server will shutdown properly
+     * logging information will be write into logfile.txt(default)
 
 
  6.) Clean generated files (optional)
